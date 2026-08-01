@@ -20,4 +20,13 @@ export const ENDPOINTS = {
         commits: (id) => `${BASE_URL}/api/repositories/${id}/commits/`,
         currentBranch: (id) => `${BASE_URL}/api/repositories/${id}/current_branch/`,
     },
+    files: {
+        tree: `${BASE_URL}/api/files/tree/`,
+        content: `${BASE_URL}/api/files/content/`,
+        save: `${BASE_URL}/api/files/save/`,
+        createFile: `${BASE_URL}/api/files/create-file/`,
+        createFolder: `${BASE_URL}/api/files/create-folder/`,
+        rename: `${BASE_URL}/api/files/rename/`,
+        delete: `${BASE_URL}/api/files/delete/`,
+    },
 };

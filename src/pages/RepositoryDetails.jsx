@@ -5,6 +5,8 @@ import { ENDPOINTS } from '../endpoints';
 import { 
     FolderGit2, ArrowLeft, GitBranch, Clock, AlertCircle, FileText, Activity 
 } from 'lucide-react';
+import FileExplorer from '../components/FileExplorer';
+import FileEditor from '../components/FileEditor';
 
 const RepositoryDetails = () => {
     const { id } = useParams();
@@ -15,6 +17,10 @@ const RepositoryDetails = () => {
     const [currentBranch, setCurrentBranch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    
+    // File Explorer State
+    const [activeTab, setActiveTab] = useState('overview');
+    const [selectedFile, setSelectedFile] = useState(null);
 
     useEffect(() => {
         fetchRepositoryData();
@@ -89,7 +95,24 @@ const RepositoryDetails = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-8">
+            {/* Tabs */}
+            <div className="flex items-center gap-4 mb-6 border-b border-[var(--border-color)]">
+                <button 
+                    className={`pb-2 px-4 ${activeTab === 'overview' ? 'text-[var(--accent)] border-b-2 border-[var(--accent)] font-semibold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    onClick={() => setActiveTab('overview')}
+                >
+                    Overview
+                </button>
+                <button 
+                    className={`pb-2 px-4 ${activeTab === 'files' ? 'text-[var(--accent)] border-b-2 border-[var(--accent)] font-semibold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    onClick={() => setActiveTab('files')}
+                >
+                    Files
+                </button>
+            </div>
+
+            {activeTab === 'overview' && (
+                <div className="grid grid-cols-3 gap-8">
                 {/* Left Column: Status & Branches */}
                 <div className="col-span-1" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     
@@ -202,6 +225,18 @@ const RepositoryDetails = () => {
                     </div>
                 </div>
             </div>
+            )}
+
+            {activeTab === 'files' && (
+                <div className="grid grid-cols-4 gap-6" style={{ height: '600px' }}>
+                    <div className="col-span-1 h-full">
+                        <FileExplorer repositoryId={id} onFileSelect={setSelectedFile} />
+                    </div>
+                    <div className="col-span-3 h-full">
+                        <FileEditor repositoryId={id} filePath={selectedFile} onClose={() => setSelectedFile(null)} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
