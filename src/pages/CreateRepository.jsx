@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../api';
 import { ENDPOINTS } from '../endpoints';
 import { FolderGit2, ArrowLeft } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const CreateRepository = () => {
     const [formData, setFormData] = useState({
@@ -25,17 +26,21 @@ const CreateRepository = () => {
 
         try {
             const response = await api.post(ENDPOINTS.repositories.create, formData);
+            toast.success("Repository created successfully!");
             navigate(`/repositories/${response.data.id}`);
         } catch (error) {
             console.error("Failed to create repository:", error);
             const errorData = error.response?.data;
+            let errorMsg = 'Failed to create repository';
+            
             if (typeof errorData === 'object') {
-                setError(Object.entries(errorData)
+                errorMsg = Object.entries(errorData)
                     .map(([key, val]) => `${key}: ${Array.isArray(val) ? val[0] : val}`)
-                    .join(' | '));
-            } else {
-                setError('Failed to create repository');
+                    .join(' | ');
             }
+            
+            setError(errorMsg);
+            toast.error("Failed to create repository");
         } finally {
             setIsLoading(false);
         }
@@ -43,29 +48,29 @@ const CreateRepository = () => {
 
     return (
         <div className="container mt-8" style={{ maxWidth: '600px' }}>
-            <Link to="/" className="btn btn-secondary mb-6" style={{ border: 'none', padding: '0.5rem 0' }}>
+            <Link to="/" className="btn btn-secondary mb-6 hover:bg-transparent hover:text-[var(--accent)] transition-colors" style={{ border: 'none', padding: '0.5rem 0' }}>
                 <ArrowLeft size={18} />
                 Back to Dashboard
             </Link>
 
             <div className="glass-panel">
-                <div className="flex items-center gap-3 mb-6 pb-6" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px' }}>
-                        <FolderGit2 size={24} color="var(--accent)" />
+                <div className="flex items-center gap-4 mb-6 pb-6 border-b border-[var(--border-color)]">
+                    <div className="p-3 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-color)]">
+                        <FolderGit2 size={28} className="text-[var(--accent)]" />
                     </div>
                     <div>
-                        <h2 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>Create a New Repository</h2>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Initialize a new Git repository and track it in Devlan.</p>
+                        <h2 className="text-2xl font-semibold mb-1">Create a New Repository</h2>
+                        <p className="text-[var(--text-secondary)] text-sm">Initialize a new Git repository and track it in Devlan.</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label className="form-label">Repository Name</label>
+                    <div className="form-group mb-5">
+                        <label className="form-label text-[var(--text-secondary)] text-sm font-medium mb-2 block">Repository Name</label>
                         <input 
                             type="text" 
                             name="name"
-                            className="form-input" 
+                            className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg py-2.5 px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-all"
                             value={formData.name}
                             onChange={handleChange}
                             placeholder="e.g. my-awesome-project"
@@ -73,11 +78,11 @@ const CreateRepository = () => {
                         />
                     </div>
                     
-                    <div className="form-group">
-                        <label className="form-label">Description (Optional)</label>
+                    <div className="form-group mb-5">
+                        <label className="form-label text-[var(--text-secondary)] text-sm font-medium mb-2 block">Description (Optional)</label>
                         <textarea 
                             name="description"
-                            className="form-input" 
+                            className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg py-2.5 px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-all resize-none"
                             value={formData.description}
                             onChange={handleChange}
                             placeholder="Short description of your project"
@@ -86,22 +91,22 @@ const CreateRepository = () => {
                     </div>
 
                     <div className="form-group mb-8">
-                        <label className="form-label">Default Branch</label>
+                        <label className="form-label text-[var(--text-secondary)] text-sm font-medium mb-2 block">Default Branch</label>
                         <input 
                             type="text" 
                             name="default_branch"
-                            className="form-input" 
+                            className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg py-2.5 px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-all"
                             value={formData.default_branch}
                             onChange={handleChange}
                             required 
                         />
                     </div>
 
-                    {error && <div className="error-text mb-6 p-3" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px' }}>{error}</div>}
+                    {error && <div className="text-red-400 bg-red-500/10 border border-red-500/20 text-sm mb-6 p-3 rounded-lg">{error}</div>}
 
-                    <div className="flex justify-end gap-4 mt-6 pt-6" style={{ borderTop: '1px solid var(--border-color)' }}>
-                        <Link to="/" className="btn btn-secondary">Cancel</Link>
-                        <button type="submit" className="btn btn-primary" disabled={isLoading}>
+                    <div className="flex justify-end gap-4 mt-6 pt-6 border-t border-[var(--border-color)]">
+                        <Link to="/" className="btn btn-secondary px-6">Cancel</Link>
+                        <button type="submit" className="btn btn-primary px-6" disabled={isLoading}>
                             {isLoading ? 'Creating...' : 'Create Repository'}
                         </button>
                     </div>

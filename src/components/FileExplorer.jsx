@@ -1,186 +1,295 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FilePlus, FolderPlus, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronRight, ChevronDown, File, Folder, Edit2, Trash2, FilePlus, FolderPlus, Copy, ExternalLink, RefreshCw } from 'lucide-react';
 import api from '../api';
 import { ENDPOINTS } from '../endpoints';
+import { useIDEStore } from '../store/useIDEStore';
+import ContextMenu from './ContextMenu';
+import toast from 'react-hot-toast';
 
-const TreeNode = ({ node, currentPath, onFileClick, onAction }) => {
+const InlineInput = ({ initialValue = '', onSubmit, onCancel, type = 'file' }) => {
+    const [val, setVal] = useState(initialValue);
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.focus();
+            if (initialValue) {
+                // Select only filename without extension
+                const dotIndex = initialValue.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    inputRef.current.setSelectionRange(0, dotIndex);
+                } else {
+                    inputRef.current.select();
+                }
+            }
+        }
+    }, [initialValue]);
+
+    return (
+        <div className="flex items-center gap-2 py-1 px-2 ml-4">
+            {type === 'folder' ? <Folder size={16} color="var(--accent)" /> : <File size={16} color="var(--text-secondary)" />}
+            <input
+                ref={inputRef}
+                value={val}
+                onChange={e => setVal(e.target.value)}
+                onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                        if (val.trim()) onSubmit(val.trim());
+                        else onCancel();
+                    }
+                    if (e.key === 'Escape') onCancel();
+                }}
+                onBlur={() => {
+                    if (val.trim()) onSubmit(val.trim());
+                    else onCancel();
+                }}
+                className="bg-[var(--bg-hover)] border border-[var(--accent)] text-[var(--text-primary)] text-sm rounded px-1 outline-none w-full"
+            />
+        </div>
+    );
+};
+
+const TreeNode = ({ node, currentPath, onAction }) => {
     const [isOpen, setIsOpen] = useState(false);
-    
-    // root node has no currentPath, so we build paths relative to root
+    const { activeFile, openFile } = useIDEStore();
+    const [contextMenu, setContextMenu] = useState(null);
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [isCreatingFile, setIsCreatingFile] = useState(false);
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+
     const isRoot = currentPath === null;
-    // Don't include root name in the path string
     const nodePath = isRoot ? '' : (currentPath ? `${currentPath}/${node.name}` : node.name);
     
-    const toggleOpen = (e) => {
-        e.stopPropagation();
-        setIsOpen(!isOpen);
-    };
+    // Auto-open if active file is inside
+    useEffect(() => {
+        if (!isRoot && activeFile && activeFile.startsWith(nodePath + '/') && node.type === 'folder') {
+            setIsOpen(true);
+        }
+    }, [activeFile, nodePath, isRoot, node.type]);
 
     const handleClick = (e) => {
         e.stopPropagation();
         if (node.type === 'folder') {
             setIsOpen(!isOpen);
         } else {
-            onFileClick(nodePath);
+            openFile(nodePath);
         }
     };
 
-    const handleAction = (e, action) => {
+    const handleContextMenu = (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        onAction(action, node, nodePath);
+        setContextMenu({ x: e.clientX, y: e.clientY });
     };
 
-    return (
-        <div style={{ marginLeft: isRoot ? '0' : '1rem' }}>
-            <div 
-                className="flex items-center justify-between py-1 px-2 hover:bg-[rgba(255,255,255,0.05)] rounded cursor-pointer group"
-                onClick={handleClick}
-            >
-                <div className="flex items-center gap-2" style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                    {node.type === 'folder' && (
-                        <span onClick={toggleOpen} className="text-[var(--text-secondary)]">
-                            {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                        </span>
-                    )}
-                    {node.type === 'folder' ? (
-                        <Folder size={16} color="var(--accent)" />
-                    ) : (
-                        <span style={{ marginLeft: node.type === 'file' ? '1.5rem' : '0' }}>
-                            <File size={16} color="var(--text-secondary)" />
-                        </span>
-                    )}
-                    <span>{node.name}</span>
-                </div>
+    const isActive = activeFile === nodePath;
 
-                {!isRoot && (
-                    <div className="hidden group-hover:flex items-center gap-2 opacity-70">
+    return (
+        <div style={{ marginLeft: isRoot ? '0' : '0.5rem' }}>
+            {/* The Node Itself */}
+            {!isRoot && !isRenaming && (
+                <div 
+                    className={`flex items-center justify-between py-1 px-2 rounded cursor-pointer select-none transition-colors
+                        ${isActive ? 'bg-[var(--accent-glow)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'}
+                    `}
+                    onClick={handleClick}
+                    onContextMenu={handleContextMenu}
+                >
+                    <div className="flex items-center gap-1 overflow-hidden">
                         {node.type === 'folder' && (
-                            <>
-                                <button onClick={(e) => handleAction(e, 'createFile')} title="New File" className="hover:text-[var(--accent)]"><FilePlus size={14} /></button>
-                                <button onClick={(e) => handleAction(e, 'createFolder')} title="New Folder" className="hover:text-[var(--accent)]"><FolderPlus size={14} /></button>
-                            </>
+                            <span className="opacity-70 flex-shrink-0">
+                                {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            </span>
                         )}
-                        <button onClick={(e) => handleAction(e, 'rename')} title="Rename" className="hover:text-[var(--accent)]"><Edit2 size={14} /></button>
-                        <button onClick={(e) => handleAction(e, 'delete')} title="Delete" className="hover:text-red-500"><Trash2 size={14} /></button>
+                        <span className="flex-shrink-0 ml-1">
+                            {node.type === 'folder' ? (
+                                <Folder size={14} color="var(--accent)" />
+                            ) : (
+                                <File size={14} className={isActive ? 'text-[var(--accent)]' : ''} />
+                            )}
+                        </span>
+                        <span className="text-sm truncate ml-1 leading-tight">{node.name}</span>
                     </div>
-                )}
-                {isRoot && (
-                    <div className="hidden group-hover:flex items-center gap-2 opacity-70">
-                        <button onClick={(e) => handleAction(e, 'createFile')} title="New File" className="hover:text-[var(--accent)]"><FilePlus size={14} /></button>
-                        <button onClick={(e) => handleAction(e, 'createFolder')} title="New Folder" className="hover:text-[var(--accent)]"><FolderPlus size={14} /></button>
-                    </div>
-                )}
-            </div>
-            
-            {node.type === 'folder' && (isRoot || isOpen) && node.children && (
+                </div>
+            )}
+
+            {/* Rename Input */}
+            {!isRoot && isRenaming && (
+                <InlineInput 
+                    initialValue={node.name}
+                    type={node.type}
+                    onSubmit={(newName) => {
+                        setIsRenaming(false);
+                        if (newName !== node.name) onAction('rename', nodePath, newName);
+                    }}
+                    onCancel={() => setIsRenaming(false)}
+                />
+            )}
+
+            {/* Folder Children */}
+            {node.type === 'folder' && (isRoot || isOpen) && (
                 <div>
-                    {node.children.map((child, idx) => (
+                    {node.children?.map((child, idx) => (
                         <TreeNode 
-                            key={idx} 
+                            key={`${nodePath}-${child.name}-${idx}`} 
                             node={child} 
                             currentPath={nodePath} 
-                            onFileClick={onFileClick} 
                             onAction={onAction}
                         />
                     ))}
+
+                    {/* Creation Inputs at the bottom of the folder */}
+                    {isCreatingFile && (
+                        <InlineInput 
+                            type="file"
+                            onSubmit={(name) => {
+                                setIsCreatingFile(false);
+                                onAction('createFile', nodePath, name);
+                            }}
+                            onCancel={() => setIsCreatingFile(false)}
+                        />
+                    )}
+                    {isCreatingFolder && (
+                        <InlineInput 
+                            type="folder"
+                            onSubmit={(name) => {
+                                setIsCreatingFolder(false);
+                                onAction('createFolder', nodePath, name);
+                            }}
+                            onCancel={() => setIsCreatingFolder(false)}
+                        />
+                    )}
                 </div>
+            )}
+
+            {/* Context Menu */}
+            {contextMenu && (
+                <ContextMenu
+                    position={contextMenu}
+                    onClose={() => setContextMenu(null)}
+                    items={[
+                        ...(node.type === 'folder' ? [
+                            { label: 'New File', icon: FilePlus, onClick: () => { setIsOpen(true); setIsCreatingFile(true); } },
+                            { label: 'New Folder', icon: FolderPlus, onClick: () => { setIsOpen(true); setIsCreatingFolder(true); } },
+                            { type: 'separator' }
+                        ] : []),
+                        { label: 'Rename', icon: Edit2, onClick: () => setIsRenaming(true), shortcut: 'F2' },
+                        { label: 'Delete', icon: Trash2, danger: true, onClick: () => onAction('delete', nodePath) },
+                        { type: 'separator' },
+                        { label: 'Copy Path', icon: Copy, onClick: () => {
+                            navigator.clipboard.writeText(nodePath);
+                            toast.success("Path copied to clipboard");
+                        }}
+                    ]}
+                />
             )}
         </div>
     );
 };
 
-const FileExplorer = ({ repositoryId, onFileSelect }) => {
+const FileExplorer = ({ repositoryId }) => {
     const [tree, setTree] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [isCreatingRootFile, setIsCreatingRootFile] = useState(false);
+    const [isCreatingRootFolder, setIsCreatingRootFolder] = useState(false);
 
     const fetchTree = async () => {
         try {
             setLoading(true);
-            const res = await api.get(ENDPOINTS.files.tree, {
-                params: { repository_id: repositoryId }
-            });
+            const res = await api.get(ENDPOINTS.files.tree, { params: { repository_id: repositoryId } });
             setTree(res.data);
-            setError(null);
         } catch (err) {
             console.error(err);
-            setError("Failed to load file tree.");
+            toast.error(`Failed to load file tree: ${err.response?.status} ${err.response?.data?.detail || err.message}`);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (repositoryId) {
-            fetchTree();
-        }
+        if (repositoryId) fetchTree();
     }, [repositoryId]);
 
-    const handleAction = async (action, node, nodePath) => {
-        if (action === 'createFile' || action === 'createFolder') {
-            const name = prompt(`Enter name for new ${action === 'createFile' ? 'file' : 'folder'}:`);
-            if (!name) return;
-
-            const endpoint = action === 'createFile' ? ENDPOINTS.files.createFile : ENDPOINTS.files.createFolder;
-            
-            try {
+    const handleAction = async (action, targetPath, newName) => {
+        try {
+            if (action === 'createFile' || action === 'createFolder') {
+                const endpoint = action === 'createFile' ? ENDPOINTS.files.createFile : ENDPOINTS.files.createFolder;
                 await api.post(endpoint, {
                     repository_id: repositoryId,
-                    directory: nodePath,
-                    name: name
+                    directory: targetPath, // targetPath is the parent directory
+                    name: newName
                 });
+                toast.success(`${action === 'createFile' ? 'File' : 'Folder'} created.`);
                 fetchTree();
-            } catch (err) {
-                alert(`Error creating: ${err.response?.data?.message || err.message}`);
-            }
-        } 
-        else if (action === 'rename') {
-            const newName = prompt('Enter new name:', node.name);
-            if (!newName || newName === node.name) return;
-
-            try {
+            } 
+            else if (action === 'rename') {
                 await api.put(ENDPOINTS.files.rename, {
                     repository_id: repositoryId,
-                    old_path: nodePath,
+                    old_path: targetPath,
                     new_name: newName
                 });
+                // TODO: Update active tab path if renamed file was open
                 fetchTree();
-            } catch (err) {
-                alert(`Error renaming: ${err.response?.data?.message || err.message}`);
             }
-        }
-        else if (action === 'delete') {
-            if (!confirm(`Are you sure you want to delete ${node.name}?`)) return;
-
-            try {
+            else if (action === 'delete') {
+                if (!confirm(`Are you sure you want to delete ${targetPath}?`)) return;
                 await api.delete(ENDPOINTS.files.delete, {
-                    data: {
-                        repository_id: repositoryId,
-                        path: nodePath
-                    }
+                    data: { repository_id: repositoryId, path: targetPath }
                 });
+                toast.success('Deleted successfully.');
                 fetchTree();
-            } catch (err) {
-                alert(`Error deleting: ${err.response?.data?.message || err.message}`);
             }
+        } catch (err) {
+            toast.error(err.response?.data?.message || err.message);
         }
     };
 
-    if (loading) return <div className="p-4 text-[var(--text-secondary)]">Loading files...</div>;
-    if (error) return <div className="p-4 text-red-500">{error}</div>;
-    if (!tree) return null;
+    if (loading && !tree) {
+        return <div className="p-4 text-xs text-[var(--text-secondary)] animate-pulse">Loading explorer...</div>;
+    }
 
     return (
-        <div className="glass-panel overflow-y-auto h-full p-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-            <h3 className="text-lg mb-4 font-semibold text-[var(--text-primary)] border-b border-[var(--border-color)] pb-2 flex items-center gap-2">
-                <Folder size={20} color="var(--accent)" /> Files
-            </h3>
-            <TreeNode 
-                node={tree} 
-                currentPath={null} 
-                onFileClick={onFileSelect} 
-                onAction={handleAction}
-            />
+        <div className="h-full flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-color)] w-full">
+            <div className="flex items-center justify-between p-3 border-b border-[var(--border-color)]">
+                <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Explorer</span>
+                <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                    <button onClick={() => setIsCreatingRootFile(true)} title="New File" className="p-1 hover:bg-[rgba(255,255,255,0.1)] rounded"><FilePlus size={14} /></button>
+                    <button onClick={() => setIsCreatingRootFolder(true)} title="New Folder" className="p-1 hover:bg-[rgba(255,255,255,0.1)] rounded"><FolderPlus size={14} /></button>
+                    <button onClick={fetchTree} title="Refresh" className="p-1 hover:bg-[rgba(255,255,255,0.1)] rounded"><RefreshCw size={14} /></button>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2 outline-none select-none" tabIndex={0}>
+                {tree && (
+                    <TreeNode 
+                        node={tree} 
+                        currentPath={null} 
+                        onAction={handleAction}
+                    />
+                )}
+                
+                {/* Root level creation */}
+                {isCreatingRootFile && (
+                    <InlineInput 
+                        type="file"
+                        onSubmit={(name) => {
+                            setIsCreatingRootFile(false);
+                            handleAction('createFile', '', name);
+                        }}
+                        onCancel={() => setIsCreatingRootFile(false)}
+                    />
+                )}
+                {isCreatingRootFolder && (
+                    <InlineInput 
+                        type="folder"
+                        onSubmit={(name) => {
+                            setIsCreatingRootFolder(false);
+                            handleAction('createFolder', '', name);
+                        }}
+                        onCancel={() => setIsCreatingRootFolder(false)}
+                    />
+                )}
+            </div>
         </div>
     );
 };
